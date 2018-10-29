@@ -1,0 +1,10 @@
+resolver: lts-12.14
+
+extra-deps:
+  - git: https://github.com/meck/alfred-footman.git
+    commit: 39614a01205e610ee2bbae97fe1fef00f0f58e1c
+  # - ../alfred-footman/
+
+ghc-options:
+  "$locals": -fhide-source-paths
+

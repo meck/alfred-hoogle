@@ -1,0 +1,5 @@
+.stack-work/
+alfred-hoogle.cabal
+*~
+Hoogle.alfredworkflow
+workflow_skeleton/alfred-hoogle
