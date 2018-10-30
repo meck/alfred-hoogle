@@ -178,15 +178,15 @@ zipWithTails l r f as bs = catMaybes . takeWhile isJust $ zipWith fMaybe
 instance FromJSON Target where
   parseJSON = withObject "Target" $ \o ->
     Target <$> o .: "url"
-           <*> maybeNamedURL "package" o
-           <*> maybeNamedURL "module" o
+           <*> o `namedUrl` "package"
+           <*> o `namedUrl` "module"
            <*> o .: "type"
            <*> o .: "item"
            <*> o .: "docs"
-    where  maybeNamedURL n t = do
-              r <- t .:? n
-              case r of Nothing -> return Nothing
-                        Just t' -> do
-                          pkName <- t' .: "name"
-                          pkUrl  <- t' .: "url"
-                          return $ Just (pkName, pkUrl)
+    where namedUrl o' n = do
+             mObj <- o' .: n
+             if null mObj then return Nothing
+                        else do
+                           pkName <- mObj .: "name"
+                           pkUrl  <- mObj .: "url"
+                           return $ Just (pkName ,pkUrl)
