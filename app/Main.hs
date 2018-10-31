@@ -1,75 +1,234 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 
-
-import Alfred
-import Hoogle
-import Data.Aeson
-import Control.Applicative
-import qualified Data.ByteString.Char8 as C8
-import qualified Data.Map.Strict as M
-import Network.HTTP.Simple
-import qualified Data.Text as T
-import Data.Maybe
-import Control.Exception
-import qualified Text.HTML.TagSoup as TS
-
-main :: IO ()
-main = alfMain hoogleSearch
+import           Alfred
+import           Hoogle
+import           Data.Aeson
+import           Control.Applicative
+import qualified Data.ByteString.Char8         as C8
+import qualified Data.Map.Strict               as M
+import           Data.Binary                    ( Binary )
+import           System.IO.Silently
+import           System.Directory               ( doesFileExist )
+import           Network.HTTP.Simple
+import qualified Data.Text                     as T
+import           Data.Maybe
+import           Control.Exception
+import qualified Text.HTML.TagSoup             as TS
+import           GHC.Generics                   ( Generic )
 
 prevSearchKey :: String
 prevSearchKey = "prevSearchTerm"
 
-hoogleSearch :: AlfM () Return
-hoogleSearch = do
-  args <- alfArgs
-  let argsString = concat args
-  doLocalSearch'  <- envVariableThrow "local_search"
-  doLocalSearch   <- readBool doLocalSearch'
-  doOnlineSearch' <- envVariableThrow "online_search"
-  doOnlineSearch  <- readBool doOnlineSearch'
-  prioLocal'      <- envVariableThrow "prio_offline"
-  prioLocal       <- readBool prioLocal'
+data AlfHState = AlfHState { localSearchActive :: Bool
+                           , onlineSearchActive :: Bool
+                           , useLocalServer :: Bool
+                           , localFilePath :: Maybe FilePath
+                           , pathOfCurrentDb :: Maybe FilePath
+                           , preferLocal :: Bool
+                           } deriving Generic
+
+instance Binary AlfHState
+instance AlfStatable AlfHState where
+  defaultState = AlfHState False True False Nothing Nothing True
+
+main :: IO ()
+main = alfMain $ envVariable "do_cmd" >>= \case
+  (Just "true") -> handleCmd
+  _             -> hoogleSearch
+
+handleCmd :: AlfM AlfHState (Maybe Return)
+handleCmd = envVariableThrow "cmd" >>= \case
+  "settings"           -> cmdShowSettings
+  "update_db"          -> cmdUpdateDb
+  "unset_local_folder" -> cmdUnsetLocal
+  "toggle_bool"        -> envVariableThrow "cmd_arg" >>= cmdToggleBool
+  "set_local_folder"   -> envVariableThrow "cmd_arg" >>= cmdSetLocalFolder
+  _                    -> throwAlfE $ OtherError "Unknown command"
+
+cmdShowSettings :: AlfM AlfHState (Maybe Return)
+cmdShowSettings = do
+  (AlfHState lsa osa ls lfp _ plo) <- get
+  return $ Just $ defaultReturn
+    { retVars = M.fromList [("do_cmd", "true")]
+    , items   =
+      [  itemWithTSV
+          ("Online search: " <> bTt osa)
+          "Disable/Enable online stackage search"
+          [("cmd", "toggle_bool"), ("cmd_arg", "online_search_active")]
+        , itemWithTSV
+          ("Localhost server: " <> bTt ls)
+          "Use 'localhost:8080' as server"
+          [("cmd", "toggle_bool"), ("cmd_arg", "local_server")]
+        , itemWithTSV
+          ("Local search: " <> bTt lsa)
+          "Disable/Enable local search"
+          [("cmd", "toggle_bool"), ("cmd_arg", "local_search_active")]
+        , itemWithTSV
+          ("Prefer local results: " <> bTt plo)
+          "Local result is shown when there is a equal online one"
+          [("cmd", "toggle_bool"), ("cmd_arg", "prefer_local")]
+        , itemWithTSV
+          "Reindex database"
+          "This might take a minute, is done in the background..."
+          [("cmd", "update_db")]
+        ]
+        ++ maybe
+             []
+             (\fp -> [ itemWithTSV "Reset local path"
+                             ("current path: " <> fp)
+                             [("cmd", "unset_local_folder")] ])
+             lfp
+    }
+ where
+  itemWithTSV t s v =
+    defaultItem { title = t, subtitle = Just s, itemVars = M.fromList v }
+
+-----------------------
+--  Command Runners  --
+-----------------------
+-- These just are just run as a scipt therefore we dont output a `Return`
+cmdUpdateDb :: AlfM AlfHState (Maybe Return)
+cmdUpdateDb = do
+  dbF                        <- databasePath
+  st@(AlfHState _ _ _ mFp _ _) <- get
+  let args = filter
+        (not . null)
+        [ "generate"
+        , "--database=" <> dbF
+        , maybe [] ("--local=" <>) mFp
+        , "--download"
+        ]
+  -- Handle exeptions and print to stdout for a done notification
+  -- and capture any stdout with silence
+  eErr <- liftIO $ silence $ try $ hoogle args
+  case eErr of
+    (Left (_ :: SomeException)) -> liftIO $ do
+      putStrLn "Indexing failed!"
+      return Nothing
+    (Right _) -> do
+      put st { pathOfCurrentDb = mFp }
+      pkgs <- searchDB "is:package"
+      liftIO
+        $  putStrLn
+        $  "Indexing finished, nr of packets in database: "
+        <> show (length pkgs)
+      return Nothing
+
+cmdSetLocalFolder :: FilePath -> AlfM AlfHState (Maybe Return)
+cmdSetLocalFolder fp = do
+  st <- get
+  put $ st { localFilePath = Just fp }
+  return Nothing
+
+cmdUnsetLocal :: AlfM AlfHState (Maybe Return)
+cmdUnsetLocal = do
+  st <- get
+  put $ st { localFilePath = Nothing }
+  return Nothing
+
+cmdToggleBool :: String -> AlfM AlfHState (Maybe Return)
+cmdToggleBool bKey = do
+  st@(AlfHState lsa osa ls _ _ plo) <- get
+  case bKey of
+    "local_search_active" ->
+      (put $ st { localSearchActive = not lsa }) >> return Nothing
+    "online_search_active" ->
+      (put $ st { onlineSearchActive = not osa }) >> return Nothing
+    "prefer_local" ->
+      (put $ st { preferLocal = not plo }) >> return Nothing
+    "local_server" ->
+      (put $ st { useLocalServer = not ls }) >> return Nothing
+    _ -> throwAlfE $ OtherError $ bKey <> " is not a valid bool"
+
+-----------------
+--  searching  --
+-----------------
+
+hoogleSearch :: AlfM AlfHState (Maybe Return)
+hoogleSearch = Just <$> do
+  (AlfHState doLocalSearch doOnlineSearch _ _ _ prefLoc) <- get
+  let doBoth = doLocalSearch && doOnlineSearch
+  query <- getQuery
   prevSearch      <- envVariable prevSearchKey
 
   let isSecondRun = case prevSearch of
         Nothing   -> False
-        (Just ps) -> ps == argsString
+        (Just ps) -> (ps == query) && doBoth
 
-  localResults' <- searchLocal argsString
-  let localResults = targetToReturn "Local search failed"
-                                    "hask_local.png"
-                                    localResults'
-  onlineResults' <- searchOnline argsString
-  let onlineResults = targetToReturn
-        "Error: 'hoogle.haskell.org' not reachable"
-        "hask_web.png"
-        onlineResults'
+  let localResults = addIcon "hask_local.png" . itemsToResult <$> searchLocal
+  let onlineResults = addIcon "hask_web.png" . itemsToResult <$> searchOnline
 
   -- | The first run if both are searched just does local results, then sets the argument to rerun the
   -- script, on the second run both are searched and the result is updated in Alfed when they are done
   if
-    | isSecondRun -> return $ unSetPrevSearch $ merge prioLocal localResults onlineResults
-    | doLocalSearch && doOnlineSearch -> return $ setPrevSearch argsString $ setRerun localResults
-    | doOnlineSearch -> return onlineResults
-    | doLocalSearch -> return localResults
-    | otherwise -> throwAlfE $ OtherError "Both 'online_search' and 'offline_search' are false"
+    | isSecondRun -> liftA2 (merge prefLoc) localResults onlineResults
+    | doBoth -> setPrevSearch query . setRerun <$> localResults
+    | doOnlineSearch -> onlineResults
+    | doLocalSearch ->  localResults
+    | otherwise -> return $ itemsToResult $ errorItems "Online and offline search is disabled"
+  where itemsToResult [] = defaultReturn { items = errorItems "No results" }
+        itemsToResult is = defaultReturn { items = is }
 
-targetToReturn :: String -> FilePath -> Maybe [Target] -> Return
-targetToReturn  _ iconFp (Just []) =
-  defaultReturn { items = [addIcon iconFp $ defaultItem { title = "No results" , valid = False }] }
-targetToReturn _ iconFp (Just ts) =
-  defaultReturn { items = addIcon iconFp . targetToItem <$> ts }
-targetToReturn conErr _ Nothing =
-  defaultReturn { items = [defaultItem { title = conErr, valid = False }] }
 
+searchLocal :: AlfM AlfHState [Item]
+searchLocal = do
+  query <- getQuery
+  (AlfHState _ _ _ lFp lDbFp _) <- get
+  exists <- databasePath >>= liftIO . doesFileExist
+  if lFp /= lDbFp || not exists
+    then return
+      [ defaultItem
+          { title    = "Local database needs updating"
+          , subtitle = Just "select to now, might take a minute or two"
+          , itemVars = M.fromList [("do_cmd", "true"), ("cmd", "update_db")]
+          , arg = Just " " -- Hacky needs a argument to be executable in alfred
+          }
+      ]
+    else fmap targetToItem . take 10 <$>  searchDB query
+
+searchDB :: String -> AlfM AlfHState [Target]
+searchDB query = databasePath >>= liftIO . flip withDatabase (return . flip searchDatabase query)
+
+-- | returns a Item with error if unable to connect or reponse code /= 200
+searchOnline :: AlfM AlfHState [Item]
+searchOnline = do
+  (AlfHState _ _ ls _ _ _) <- get
+  query <- getQuery
+  let req =
+        setRequestQueryString
+            [ ("mode"  , Just "json")
+            , ("start" , Just "1")
+            , ("count" , Just $ C8.pack "10")
+            , ("hoogle", Just $ C8.pack query)
+            ]
+          $ parseRequest_ $ sAddr ls
+  mResp <- liftIO $ try $ httpJSONEither req
+  case mResp of
+    Left  (_ :: HttpException) -> return $ errorItems "Connection error"
+    Right resp                 -> case getResponseStatusCode resp of
+      200 -> case getResponseBody resp of
+        Left e -> throwAlfE $ OtherError $ "Failed to decode JSON: " <> show e
+        Right body -> return $ targetToItem <$> body
+      _ -> return $ errorItems "Connection error"
+  where sAddr False = "https://hoogle.haskell.org"
+        sAddr True = "http://localhost:8080"
+
+---------------------------------
+--  Item and Return functions  --
+---------------------------------
+
+-- Merges two Returns by zipping them and eliminating
+-- items that have equal title and subtitle
 merge :: Bool -> Return -> Return -> Return
 merge prioLocal local online = if prioLocal
-  then local { items = newItems }
-  else online { items = newItems }
+  then local { items = items' }
+  else online { items = items' }
  where
-  newItems =
+  items' =
     concat $ zipWithTails (: []) (: []) choose (items local) (items online)
   itemsEqual a b = title a == title b && subtitle a == subtitle b
   choose a b | a `itemsEqual` b && prioLocal = [a]
@@ -112,50 +271,38 @@ targetToItem t = defaultItem
     , modArg      = Just modUrl
     }
 
-searchLocal :: String -> AlfM () (Maybe [Target])
-searchLocal _ = return Nothing -- TODO using shell json?
 
--- | returns Nothing if unable to connect or reponse code /= 200
-searchOnline :: String -> AlfM () (Maybe [Target])
-searchOnline term = do
-  let req = buildRequest term 10
-  mResp <- liftIO $ try $ httpJSONEither req
-  case mResp of
-    Left  (_ :: HttpException) -> return Nothing
-    Right resp                 -> case getResponseStatusCode resp of
-      200 -> case getResponseBody resp of
-        Left e -> throwAlfE $ OtherError $ "Failed to decode JSON: " <> show e
-        Right body -> return $ Just body
-      _ -> return Nothing
+--------------------------------
+--  Item and Return modifers  --
+--------------------------------
 
-buildRequest :: String -> Int -> Request
-buildRequest term n =
-  setRequestQueryString
-      [ ("mode"  , Just "json")
-      , ("start" , Just "1")
-      , ("count" , Just $ C8.pack $ show n)
-      , ("hoogle", Just $ C8.pack term)
-      ]
-    $ parseRequest_ "https://hoogle.haskell.org"
-
-addIcon :: FilePath -> Item -> Item
-addIcon fp i = i { icon = Just $ Icon False fp }
+addIcon :: FilePath -> Return -> Return
+addIcon fp r =
+  r { items = (\i -> i { icon = Just (Icon False fp) }) <$> items r }
 
 setPrevSearch :: String -> Return -> Return
 setPrevSearch str ret = ret { retVars = M.insert prevSearchKey str (retVars ret)}
 
-unSetPrevSearch :: Return -> Return
-unSetPrevSearch  ret = ret { retVars = M.insert prevSearchKey "" (retVars ret)}
+getQuery :: AlfM AlfHState String
+getQuery = unwords <$> alfArgs
 
 -- | The smallest value possible
 setRerun :: Return -> Return
 setRerun ret = ret { rerun = Just 0.1 }
 
-readBool :: String -> AlfM s Bool
-readBool str = case str of
-  "true"  -> return True
-  "false" -> return False
-  _       -> throwAlfE $ OtherError "Bool value other then 'true' or 'false'"
+errorItems :: String -> [Item]
+errorItems e = [defaultItem { title = e
+                            , valid = False }]
+-----------------
+--  Misc Util  --
+-----------------
+
+databasePath :: AlfM AlfHState FilePath
+databasePath = (<> "/alfredHoogleDB.hoo") <$> workflowDataDir
+
+bTt :: Bool -> String
+bTt True  = "on"
+bTt False = "off"
 
 maybeSeparator :: (Foldable t, Semigroup (t a)) => t a -> t a -> t a -> t a
 maybeSeparator s ms ms' | not (null ms) && not (null ms') = ms <> s <> ms'
@@ -174,7 +321,8 @@ zipWithTails l r f as bs = catMaybes . takeWhile isJust $ zipWith fMaybe
   fMaybe a b = liftA2 f a b <|> fmap l a <|> fmap r b
 
 
--- | Hoping to merge this instance to hoogle
+-- | Has been merged into Hoogle waiting for release leave as orphan
+-- for now
 instance FromJSON Target where
   parseJSON = withObject "Target" $ \o ->
     Target <$> o .: "url"
