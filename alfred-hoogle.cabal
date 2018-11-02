@@ -1,0 +1,51 @@
+cabal-version:       1.24
+name:                alfred-hoogle
+version:             0.0.0
+description:         Hoogle from Alfred
+synopsis:            Hoogle from Alfred
+
+
+license:             MIT
+license-file:        LICENSE
+author:              Meck
+maintainer:          johan@meck.se
+copyright:           2018 Meck
+category:            Utility
+build-type:          Simple
+extra-doc-files:     README.md
+                   , CHANGELOG.md
+                   , TODO.md
+tested-with:         GHC == 8.4.3
+
+executable alfred-hoogle
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -Wall
+                       -threaded
+                       -rtsopts
+                       -with-rtsopts=-N
+                       -Wincomplete-uni-patterns
+                       -Wincomplete-record-updates
+                       -Wcompat
+                       -Widentities
+                       -Wredundant-constraints
+                       -fhide-source-paths
+                       -Wmissing-export-lists
+                       -Wpartial-fields
+  build-depends:       base
+                     , alfred-footman
+                     , hoogle
+                     , aeson
+                     , bytestring
+                     , containers
+                     , http-conduit
+                     , tagsoup
+                     , text
+                     , binary
+                     , silently
+                     , directory
+
+
+  default-language:    Haskell2010
+
+
