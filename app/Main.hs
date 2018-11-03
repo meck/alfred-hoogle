@@ -52,16 +52,17 @@ handleCmd = envVariableThrow "cmd" >>= \case
 cmdShowSettings :: AlfM AlfHState (Maybe Return)
 cmdShowSettings = do
   (AlfHState lsa osa ls lfp _ plo) <- get
+  lSaddr <- envVariableThrow "alternate_server_addr"
   return $ Just $ defaultReturn
     { retVars = M.fromList [("do_cmd", "true")]
     , items   =
       [  itemWithTSV
-          ("Online search: " <> bTt osa)
+          ("Web search: " <> bTt osa)
           "Disable/Enable online stackage search"
           [("cmd", "toggle_bool"), ("cmd_arg", "online_search_active")]
         , itemWithTSV
-          ("Localhost server: " <> bTt ls)
-          "Use 'localhost:8080' as server"
+          ("Alternate server: " <> bTt ls)
+          ("Use '" <> lSaddr <> "' as server")
           [("cmd", "toggle_bool"), ("cmd_arg", "local_server")]
         , itemWithTSV
           ("Local search: " <> bTt lsa)
@@ -69,11 +70,11 @@ cmdShowSettings = do
           [("cmd", "toggle_bool"), ("cmd_arg", "local_search_active")]
         , itemWithTSV
           ("Prefer local results: " <> bTt plo)
-          "Local result is shown when there is a equal online one"
+          "Local result is shown when there is a equal one from web search"
           [("cmd", "toggle_bool"), ("cmd_arg", "prefer_local")]
         , itemWithTSV
-          "Reindex database"
-          "This might take a minute, is done in the background..."
+          "Reindex local database"
+          "This might take a minute, will notify when done"
           [("cmd", "update_db")]
         ]
         ++ maybe
@@ -196,6 +197,7 @@ searchDB query = databasePath >>= liftIO . flip withDatabase (return . flip sear
 -- | returns a Item with error if unable to connect or reponse code /= 200
 searchOnline :: AlfM AlfHState [Item]
 searchOnline = do
+  lAdd <- envVariableThrow "alternate_server_addr"
   (AlfHState _ _ ls _ _ _) <- get
   query <- getQuery
   let req =
@@ -205,7 +207,8 @@ searchOnline = do
             , ("count" , Just $ C8.pack "10")
             , ("hoogle", Just $ C8.pack query)
             ]
-          $ parseRequest_ $ sAddr ls
+          $ parseRequest_ $ if ls then lAdd
+                                  else "https://hoogle.haskell.org"
   mResp <- liftIO $ try $ httpJSONEither req
   case mResp of
     Left  (_ :: HttpException) -> return $ errorItems "Connection error"
@@ -214,8 +217,6 @@ searchOnline = do
         Left e -> throwAlfE $ OtherError $ "Failed to decode JSON: " <> show e
         Right body -> return $ targetToItem <$> body
       _ -> return $ errorItems "Connection error"
-  where sAddr False = "https://hoogle.haskell.org"
-        sAddr True = "http://localhost:8080"
 
 ---------------------------------
 --  Item and Return functions  --

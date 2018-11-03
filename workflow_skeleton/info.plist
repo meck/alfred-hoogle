@@ -19,6 +19,19 @@
 				<true/>
 			</dict>
 		</array>
+		<key>14F34CE5-A43E-4B6E-824C-58B22600CF6D</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>3CE8FBD3-54B7-4F63-AE74-4FDB28F3AED2</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
 		<key>2F159E27-3CDD-4D65-8074-8E15EBD1A648</key>
 		<array>
 			<dict>
@@ -94,19 +107,6 @@
 				<false/>
 			</dict>
 		</array>
-		<key>A073BF28-B4E7-494E-BB35-C3D91322E27C</key>
-		<array>
-			<dict>
-				<key>destinationuid</key>
-				<string>3CE8FBD3-54B7-4F63-AE74-4FDB28F3AED2</string>
-				<key>modifiers</key>
-				<integer>0</integer>
-				<key>modifiersubtext</key>
-				<string></string>
-				<key>vitoclose</key>
-				<false/>
-			</dict>
-		</array>
 		<key>EBD41A2C-4F1F-4853-913A-7CBFB7FEAE19</key>
 		<array>
 			<dict>
@@ -144,25 +144,6 @@
 	<string>Hoogle</string>
 	<key>objects</key>
 	<array>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>browser</key>
-				<string></string>
-				<key>spaces</key>
-				<string></string>
-				<key>url</key>
-				<string>{query}</string>
-				<key>utf8</key>
-				<true/>
-			</dict>
-			<key>type</key>
-			<string>alfred.workflow.action.openurl</string>
-			<key>uid</key>
-			<string>8E406C75-983A-49D8-91C8-5027C02B2697</string>
-			<key>version</key>
-			<integer>1</integer>
-		</dict>
 		<dict>
 			<key>config</key>
 			<dict>
@@ -209,6 +190,25 @@
 			<string>A0605D66-F8E6-4708-988C-72278C5DF481</string>
 			<key>version</key>
 			<integer>2</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>browser</key>
+				<string></string>
+				<key>spaces</key>
+				<string></string>
+				<key>url</key>
+				<string>{query}</string>
+				<key>utf8</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.openurl</string>
+			<key>uid</key>
+			<string>8E406C75-983A-49D8-91C8-5027C02B2697</string>
+			<key>version</key>
+			<integer>1</integer>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -296,6 +296,29 @@
 		<dict>
 			<key>config</key>
 			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string></string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string>alfred-hoogle</string>
+				<key>type</key>
+				<integer>8</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>4FF053C4-1320-490D-BA1B-88B83F3643C6</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
 				<key>lastpathcomponent</key>
 				<false/>
 				<key>onlyshowifquerypopulated</key>
@@ -338,29 +361,6 @@
 		<dict>
 			<key>config</key>
 			<dict>
-				<key>concurrently</key>
-				<false/>
-				<key>escaping</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string></string>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>scriptfile</key>
-				<string>alfred-hoogle</string>
-				<key>type</key>
-				<integer>8</integer>
-			</dict>
-			<key>type</key>
-			<string>alfred.workflow.action.script</string>
-			<key>uid</key>
-			<string>4FF053C4-1320-490D-BA1B-88B83F3643C6</string>
-			<key>version</key>
-			<integer>2</integer>
-		</dict>
-		<dict>
-			<key>config</key>
-			<dict>
 				<key>argument</key>
 				<string></string>
 				<key>variables</key>
@@ -393,7 +393,7 @@
 			<key>type</key>
 			<string>alfred.workflow.trigger.action</string>
 			<key>uid</key>
-			<string>A073BF28-B4E7-494E-BB35-C3D91322E27C</string>
+			<string>14F34CE5-A43E-4B6E-824C-58B22600CF6D</string>
 			<key>version</key>
 			<integer>1</integer>
 		</dict>
@@ -434,6 +434,15 @@ Keyword is editable</string>
 			<integer>40</integer>
 			<key>ypos</key>
 			<integer>210</integer>
+		</dict>
+		<key>14F34CE5-A43E-4B6E-824C-58B22600CF6D</key>
+		<dict>
+			<key>note</key>
+			<string>Takes a directory and sets it as local</string>
+			<key>xpos</key>
+			<integer>40</integer>
+			<key>ypos</key>
+			<integer>390</integer>
 		</dict>
 		<key>2F159E27-3CDD-4D65-8074-8E15EBD1A648</key>
 		<dict>
@@ -485,15 +494,6 @@ Keyword is editable</string>
 			<key>ypos</key>
 			<integer>30</integer>
 		</dict>
-		<key>A073BF28-B4E7-494E-BB35-C3D91322E27C</key>
-		<dict>
-			<key>note</key>
-			<string>Takes a directory for use with local searches</string>
-			<key>xpos</key>
-			<integer>40</integer>
-			<key>ypos</key>
-			<integer>390</integer>
-		</dict>
 		<key>C7C19EED-91C9-40BC-93C8-D50B7F8EAFE0</key>
 		<dict>
 			<key>note</key>
@@ -517,6 +517,11 @@ Keyword is editable</string>
 			<key>ypos</key>
 			<integer>130</integer>
 		</dict>
+	</dict>
+	<key>variables</key>
+	<dict>
+		<key>alternate_server_addr</key>
+		<string>http://localhost:8080</string>
 	</dict>
 	<key>version</key>
 	<string>0.0.0</string>

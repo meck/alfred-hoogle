@@ -2,7 +2,7 @@
 
 ### A [Alfred](https://www.alfredapp.com) workflow for searching [Hoogle](https://hoogle.haskell.org)
 
-This was made for my own use and to test my library for writing Alfred workflows in Haskell [alfred-footman](https://github.com/meck/alfred-footman). It can search locally and online simultaneously while filtering the results for duplicates. The default keyword is ```ho```
+This was made for my own use and to test my library for writing Alfred workflows in Haskell [alfred-footman](https://github.com/meck/alfred-footman). It can search locally and online simultaneously while filtering the results for duplicates. The default keyword is `ho`
 
 ![Demo](/docs/Screenshot.png)
 
@@ -15,11 +15,14 @@ This was made for my own use and to test my library for writing Alfred workflows
 * <kbd>Cmd</kbd>+<kbd>C</kbd> copies the function name.
 
 ## Settings
-Settings are available via the ```hoset``` keyword
+Settings are available via the `hoset` keyword
 
 ### Use a localhost server
-Enabling this changes the server address from ```hoogle.haskell.org``` to ```localhost:8080```,
-for use with commands like ```stack hoogle --server```
+Enabling this changes the server address from `hoogle.haskell.org` to `localhost:8080`,
+for use with commands like `stack hoogle --server`.
+
+The alternate adress is stored as
+a workflow variable in aldfred and can be changed from there.
 
 ### Use a local database
 Local search is disabled by default, enable it from the settings. 
@@ -36,6 +39,6 @@ If both online and local search is enabled results will be merged and filtered f
 by default the results from the local search take precedence, this changeable in the settings.
 
 ### Building
-1. Ensure ```stack``` is installed
-2. Run ```./buildworkflow.sh``` this makes ```Hoggle.alfredworkflow```
+1. Ensure `stack` is installed
+2. Run `./buildworkflow.sh` this makes `Hoggle.alfredworkflow`
 3. Open it with Alfred
