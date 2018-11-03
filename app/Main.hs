@@ -17,7 +17,11 @@ import           Network.HTTP.Simple
 import qualified Data.Text                     as T
 import           Data.Maybe
 import           Control.Exception
-import qualified Text.HTML.TagSoup             as TS
+import           Text.HTML.TagSoup              ( parseTags
+                                                , innerText
+                                                , isTagCloseName
+                                                , isTagOpenName
+                                                )
 import           GHC.Generics                   ( Generic )
 
 prevSearchKey :: String
@@ -252,15 +256,9 @@ targetToItem t = defaultItem
                        }
   }
  where
-  stripHtmlToList =
-    fmap (T.replace "<0>" "" . TS.fromTagText)
-      . filter TS.isTagText
-      . TS.parseTags
-      . T.pack
-  htmlListToString = T.unpack . T.concat
-  titleS           = htmlListToString $ stripHtmlToList $ targetItem t
-  docsS            = htmlListToString $ stripHtmlToList $ targetDocs t
-  nameS = htmlListToString $ headToList $ stripHtmlToList $ targetItem t
+  titleS = textToTags $ parseTags' $ targetItem t
+  docsS  = textToTags $ parseTags' $ targetDocs t
+  nameS  = textToTags $ extractName $ parseTags' $ targetItem t
   doMod modType (modName, modUrl) = defaultMod
     { modValid    = Just True
     , modSubtitle = Just
@@ -271,7 +269,14 @@ targetToItem t = defaultItem
                     <> "' in browser"
     , modArg      = Just modUrl
     }
-
+  parseTags' =
+    parseTags
+      . T.replace "<0>" "<nametag>"
+      . T.replace "</0>" "</nametag>"
+      . T.pack
+  textToTags  = T.unpack . innerText
+  extractName = takeWhile (not . isTagCloseName "nametag")
+    . dropWhile (not . isTagOpenName "nametag")
 
 --------------------------------
 --  Item and Return modifers  --
@@ -308,10 +313,6 @@ bTt False = "off"
 maybeSeparator :: (Foldable t, Semigroup (t a)) => t a -> t a -> t a -> t a
 maybeSeparator s ms ms' | not (null ms) && not (null ms') = ms <> s <> ms'
                         | otherwise                       = ms <> ms'
-
-headToList :: [a] -> [a]
-headToList (a : _) = [a]
-headToList _       = []
 
 zipWithTails :: (a -> c) -> (b -> c) -> (a -> b -> c) -> [a] -> [b] -> [c]
 zipWithTails l r f as bs = catMaybes . takeWhile isJust $ zipWith fMaybe
