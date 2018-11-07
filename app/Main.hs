@@ -3,15 +3,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 import           Alfred
 import           Hoogle
-import           Data.Aeson
 import           Control.Applicative
+import           Data.Bifunctor                 ( first )
 import qualified Data.ByteString.Char8         as C8
 import qualified Data.Map.Strict               as M
 import           Data.Binary                    ( Binary )
-import Text.Read (readMaybe)
+import           Text.Read                      ( readMaybe )
 import           System.IO.Silently
 import           System.Directory               ( doesFileExist )
 import           Network.HTTP.Simple
@@ -244,80 +245,69 @@ merge prioLocal local online = if prioLocal
              | a `itemsEqual` b = [b]
              | otherwise = if prioLocal then [a, b] else [b, a]
 
--- TODO Cleanup
 targetToItem :: Target -> Item
-targetToItem t = defaultItem
-  { title        = titleS
-  , subtitle     = case targetType t of
-                     "" -> ("Module: " <>) <$> liftA2 (maybeSeparator ".")
-                                                      (fst <$> targetPackage t)
-                                                      (fst <$> targetModule t)
-                     "module" -> ("Package: " <>) . fst <$> targetPackage t
-                     _        -> Nothing
-  , arg          = Just $ targetURL t
-  , autocomplete = Just nameS
-  , quicklookurl = Just $ targetURL t
-  , text         = Just $ RetText (Just nameS) (Just docsS)
-  , mods         = defaultMods { shift = getPackageMod
-                               , ctrl  = getStackPkgMod
-                               , alt   = getModMod
-                               , cmd   = getDocMod
-                               }
-  }
+targetToItem Target { targetURL, targetPackage, targetModule, targetType, targetItem, targetDocs }
+  = defaultItem
+    { title        = targetItem'
+    , subtitle     = case targetType of
+                       "" -> ("Module: " <>) <$> liftA2 (maybeSeparator ".")
+                                                        (fst <$> targetPackage')
+                                                        (fst <$> targetModule')
+                       "module" -> ("Package: " <>) . fst <$> targetPackage'
+                       _        -> Nothing
+    , arg          = Just targetURL
+    , autocomplete = Just targetName'
+    , quicklookurl = Just targetURL
+    , text         = Just $ RetText (Just targetName') (Just targetDocs')
+    , mods         = defaultMods
+                       { shift = packageMod
+                       , ctrl  = stackPkgMod
+                       , alt   = moduleMod
+                       , cmd = Just $ defaultMod { modSubtitle = Just targetDocs' }
+                       }
+    }
  where
-  targetT       = targetType t
-  mTargetP      = targetPackage t
-  mTargetM      = targetModule t
-  titleS        = textToTags $ parseTags' $ targetItem t
-  docsS         = textToTags $ parseTags' $ targetDocs t
-  nameS         = textToTags $ extractName $ parseTags' $ targetItem t
-  getPackageMod = case targetT of
-    "" -> blankNothing $ uncurry (buildMod "package" Nothing) <$> mTargetP
-    "module" ->
-      blankNothing $ uncurry (buildMod "package" Nothing) <$> mTargetP
-    "package" -> Just $ buildMod "package" Nothing nameS $ targetURL t
+   -- | Target comes with its own stringtype
+  targetPackage' = first show <$> targetPackage
+  targetModule'  = first show <$> targetModule
+  targetItem'    = T.unpack $ innerText $ parseTags $ T.pack targetItem
+  targetDocs'    = T.unpack $ innerText $ parseTags $ T.pack targetDocs
+  targetName' =
+    T.unpack
+      $ innerText
+      $ takeWhile (not . isTagCloseName "s0")
+      $ dropWhile (not . isTagOpenName "s0")
+      $ parseTags
+      $ T.pack targetItem
+  packageMod = case targetType of
+    ""        -> bNo $ makeMod pacS False =<< targetPackage'
+    "module"  -> bNo $ makeMod pacS False =<< targetPackage'
+    "package" -> makeMod pacS False (targetName', targetURL)
     _         -> Nothing
-  getStackPkgMod = case targetT of
-    "" ->
-      blankNothing
-        $   uncurry (buildMod "package" (Just "Stackage"))
-        .   dupUrl
-        <$> targetPackage t
-    "module" ->
-      blankNothing
-        $   uncurry (buildMod "package" (Just "Stackage"))
-        .   dupUrl
-        <$> targetPackage t
-    "package" ->
-      Just $ buildMod "package" (Just "Stackage") nameS $ stackAddr nameS
-    _ -> Nothing
-  getModMod = case targetT of
-    ""        -> blankNothing $ uncurry (buildMod "module" Nothing) <$> mTargetM
-    "module"  -> Just $ buildMod "module" Nothing nameS $ targetURL t
-    "package" -> blankNothing Nothing
+  stackPkgMod = case targetType of
+    ""        -> bNo $ makeMod pacS True . dupUrl =<< targetPackage'
+    "module"  -> bNo $ makeMod pacS True . dupUrl =<< targetPackage'
+    "package" -> makeMod pacS True (targetName', stackAddr targetName')
     _         -> Nothing
-  blankNothing = maybe (Just $ defaultMod { modSubtitle = Just "" }) pure
-  buildMod tType mSite tName tUrl = defaultMod
-    { modSubtitle = Just
-                    $  "View "
-                    <> tType
-                    <> " '"
-                    <> tName
-                    <> "'"
-                    <> maybe mempty (" on " <>) mSite
-    , modArg      = Just tUrl
+  moduleMod = case targetType of
+    ""        -> bNo $ makeMod modS False =<< targetModule'
+    "module"  -> makeMod modS False (targetName', targetURL)
+    "package" -> bNo Nothing
+    _         -> Nothing
+  makeMod tType onStack (tName, tUrl) = Just $ defaultMod
+    { modArg      = Just tUrl
+    , modSubtitle = Just
+                      ("View " <> tType <> " '" <> tName <> "'" <> if onStack
+                        then " on stackage"
+                        else mempty
+                      )
     }
   dupUrl (n, _) = (n, stackAddr n)
+  pacS      = "package"
+  modS      = "module"
   stackAddr = mappend "https://www.stackage.org/package/"
-  getDocMod = Just $ defaultMod { modSubtitle = Just docsS }
-  parseTags' =
-    parseTags
-      . T.replace "<0>" "<s0>"
-      . T.replace "</0>" "</s0>"
-      . T.pack
-  textToTags  = T.unpack . innerText
-  extractName = takeWhile (not . isTagCloseName "s0")
-    . dropWhile (not . isTagOpenName "s0")
+  -- | Needed to disable defaults in alfred
+  bNo       = maybe (Just $ defaultMod { modSubtitle = Just "" }) pure
 
 --------------------------------
 --  Item and Return modifers  --
@@ -362,22 +352,3 @@ zipWithTails l r f as bs = catMaybes . takeWhile isJust $ zipWith fMaybe
  where
   extend xs = map Just xs ++ repeat Nothing
   fMaybe a b = liftA2 f a b <|> fmap l a <|> fmap r b
-
-
--- | Has been merged into Hoogle waiting for release leave as orphan
--- for now
-instance FromJSON Target where
-  parseJSON = withObject "Target" $ \o ->
-    Target <$> o .: "url"
-           <*> o `namedUrl` "package"
-           <*> o `namedUrl` "module"
-           <*> o .: "type"
-           <*> o .: "item"
-           <*> o .: "docs"
-    where namedUrl o' n = do
-             mObj <- o' .: n
-             if null mObj then return Nothing
-                        else do
-                           pkName <- mObj .: "name"
-                           pkUrl  <- mObj .: "url"
-                           return $ Just (pkName ,pkUrl)

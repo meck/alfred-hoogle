@@ -3,6 +3,8 @@ resolver: lts-12.16
 extra-deps:
   - git: https://github.com/meck/alfred-footman.git
     commit: 4b4973e4bd39bb21ea0939a7e37e71c9f92913e1
+  - git: https://github.com/ndmitchell/hoogle.git
+    commit: 825e66699b3e14c968d8c08bc1ec26006d6d8183
   # - ../alfred-footman/
 
 ghc-options:
