@@ -244,43 +244,80 @@ merge prioLocal local online = if prioLocal
              | a `itemsEqual` b = [b]
              | otherwise = if prioLocal then [a, b] else [b, a]
 
+-- TODO Cleanup
 targetToItem :: Target -> Item
 targetToItem t = defaultItem
   { title        = titleS
-  , subtitle     = liftA2 (maybeSeparator ".")
-                          (fst <$> targetPackage t)
-                          (fst <$> targetModule t)
+  , subtitle     = case targetType t of
+                     "" -> ("Module: " <>) <$> liftA2 (maybeSeparator ".")
+                                                      (fst <$> targetPackage t)
+                                                      (fst <$> targetModule t)
+                     "module" -> ("Package: " <>) . fst <$> targetPackage t
+                     _        -> Nothing
   , arg          = Just $ targetURL t
   , autocomplete = Just nameS
   , quicklookurl = Just $ targetURL t
   , text         = Just $ RetText (Just nameS) (Just docsS)
-  , mods = defaultMods { shift = doMod "package" <$> targetPackage t
-                       , alt   = doMod "module" <$> targetModule t
-                       , ctrl  = Just $ defaultMod { modSubtitle = Just docsS }
-                       }
+  , mods         = defaultMods { shift = getPackageMod
+                               , ctrl  = getStackPkgMod
+                               , alt   = getModMod
+                               , cmd   = getDocMod
+                               }
   }
  where
-  titleS = textToTags $ parseTags' $ targetItem t
-  docsS  = textToTags $ parseTags' $ targetDocs t
-  nameS  = textToTags $ extractName $ parseTags' $ targetItem t
-  doMod modType (modName, modUrl) = defaultMod
-    { modValid    = Just True
-    , modSubtitle = Just
-                    $  "Open "
-                    <> modType
+  targetT       = targetType t
+  mTargetP      = targetPackage t
+  mTargetM      = targetModule t
+  titleS        = textToTags $ parseTags' $ targetItem t
+  docsS         = textToTags $ parseTags' $ targetDocs t
+  nameS         = textToTags $ extractName $ parseTags' $ targetItem t
+  getPackageMod = case targetT of
+    "" -> blankNothing $ uncurry (buildMod "package" Nothing) <$> mTargetP
+    "module" ->
+      blankNothing $ uncurry (buildMod "package" Nothing) <$> mTargetP
+    "package" -> Just $ buildMod "package" Nothing nameS $ targetURL t
+    _         -> Nothing
+  getStackPkgMod = case targetT of
+    "" ->
+      blankNothing
+        $   uncurry (buildMod "package" (Just "Stackage"))
+        .   dupUrl
+        <$> targetPackage t
+    "module" ->
+      blankNothing
+        $   uncurry (buildMod "package" (Just "Stackage"))
+        .   dupUrl
+        <$> targetPackage t
+    "package" ->
+      Just $ buildMod "package" (Just "Stackage") nameS $ stackAddr nameS
+    _ -> Nothing
+  getModMod = case targetT of
+    ""        -> blankNothing $ uncurry (buildMod "module" Nothing) <$> mTargetM
+    "module"  -> Just $ buildMod "module" Nothing nameS $ targetURL t
+    "package" -> blankNothing Nothing
+    _         -> Nothing
+  blankNothing = maybe (Just $ defaultMod { modSubtitle = Just "" }) pure
+  buildMod tType mSite tName tUrl = defaultMod
+    { modSubtitle = Just
+                    $  "View "
+                    <> tType
                     <> " '"
-                    <> modName
-                    <> "' in browser"
-    , modArg      = Just modUrl
+                    <> tName
+                    <> "'"
+                    <> maybe mempty (" on " <>) mSite
+    , modArg      = Just tUrl
     }
+  dupUrl (n, _) = (n, stackAddr n)
+  stackAddr = mappend "https://www.stackage.org/package/"
+  getDocMod = Just $ defaultMod { modSubtitle = Just docsS }
   parseTags' =
     parseTags
-      . T.replace "<0>" "<nametag>"
-      . T.replace "</0>" "</nametag>"
+      . T.replace "<0>" "<s0>"
+      . T.replace "</0>" "</s0>"
       . T.pack
   textToTags  = T.unpack . innerText
-  extractName = takeWhile (not . isTagCloseName "nametag")
-    . dropWhile (not . isTagOpenName "nametag")
+  extractName = takeWhile (not . isTagCloseName "s0")
+    . dropWhile (not . isTagOpenName "s0")
 
 --------------------------------
 --  Item and Return modifers  --
@@ -291,7 +328,8 @@ addIcon fp r =
   r { items = (\i -> i { icon = Just (Icon False fp) }) <$> items r }
 
 setPrevSearch :: String -> Return -> Return
-setPrevSearch str ret = ret { retVars = M.insert prevSearchKey str (retVars ret)}
+setPrevSearch str ret =
+  ret { retVars = M.insert prevSearchKey str (retVars ret) }
 
 getQuery :: AlfM AlfHState String
 getQuery = unwords <$> alfArgs
@@ -301,8 +339,7 @@ setRerun :: Return -> Return
 setRerun ret = ret { rerun = Just 0.1 }
 
 errorItems :: String -> [Item]
-errorItems e = [defaultItem { title = e
-                            , valid = False }]
+errorItems e = [defaultItem { title = e, valid = False }]
 -----------------
 --  Misc Util  --
 -----------------

@@ -7,10 +7,11 @@ This was made for my own use and to test my library for writing Alfred workflows
 ![Demo](/docs/Screenshot.png)
 
 ### Possible actions on results
-* <kbd>Enter</kbd> on a result opens the docs in a browser.
-* <kbd>Shift</kbd> shows the package and links to docs.
-* <kbd>Alt</kbd> shows the module and links to docs.
-* <kbd>Ctrl</kbd> previews any available docs in the item subtitle.
+* <kbd>Enter</kbd> on a result opens the item docs in a browser.
+* <kbd>Enter</kbd>+<kbd>Shift</kbd> opens the package docs of the item on Hackage or locally.
+* <kbd>Enter</kbd>+<kbd>Ctrl</kbd> opens the module docs of the item if any on Hackage or locally.
+* <kbd>Alt</kbd>+<kbd>Enter</kbd> opens the package docs of the item on Stackage.
+* <kbd>Cmd</kbd> show the docs if any below the item. 
 * <kbd>Cmd</kbd>+<kbd>Y</kbd> or a tap on <kbd>Shift</kbd> opens a quicklook window.
 * <kbd>Cmd</kbd>+<kbd>C</kbd> copies the function name.
 
