@@ -11,6 +11,7 @@ import           Control.Applicative
 import qualified Data.ByteString.Char8         as C8
 import qualified Data.Map.Strict               as M
 import           Data.Binary                    ( Binary )
+import Text.Read (readMaybe)
 import           System.IO.Silently
 import           System.Directory               ( doesFileExist )
 import           Network.HTTP.Simple
@@ -178,22 +179,24 @@ hoogleSearch = Just <$> do
   where itemsToResult [] = defaultReturn { items = errorItems "No results" }
         itemsToResult is = defaultReturn { items = is }
 
-
 searchLocal :: AlfM AlfHState [Item]
 searchLocal = do
-  query <- getQuery
+  query                         <- getQuery
   (AlfHState _ _ _ lFp lDbFp _) <- get
-  exists <- databasePath >>= liftIO . doesFileExist
-  if lFp /= lDbFp || not exists
-    then return
-      [ defaultItem
-          { title    = "Local database needs updating"
-          , subtitle = Just "select to now, might take a minute or two"
-          , itemVars = M.fromList [("do_cmd", "true"), ("cmd", "update_db")]
-          , arg = Just " " -- Hacky needs a argument to be executable in alfred
-          }
-      ]
-    else fmap targetToItem . take 10 <$>  searchDB query
+  exists                        <- databasePath >>= liftIO . doesFileExist
+  nSearches'                    <- envVariableThrow "n_local_search"
+  case readMaybe nSearches' of
+    Nothing        -> throwAlfE $ EnvVarError $ "n_local_search" <> " not valid"
+    Just nSearches -> if lFp /= lDbFp || not exists
+      then return
+        [ defaultItem
+            { title    = "Local database needs updating"
+            , subtitle = Just "select to now, might take a minute or two"
+            , itemVars = M.fromList [("do_cmd", "true"), ("cmd", "update_db")]
+            , arg      = Just " " -- Hacky needs a argument to be executable in alfred
+            }
+        ]
+      else fmap targetToItem . take nSearches <$> searchDB query
 
 searchDB :: String -> AlfM AlfHState [Target]
 searchDB query = databasePath >>= liftIO . flip withDatabase (return . flip searchDatabase query)
@@ -201,18 +204,19 @@ searchDB query = databasePath >>= liftIO . flip withDatabase (return . flip sear
 -- | returns a Item with error if unable to connect or reponse code /= 200
 searchOnline :: AlfM AlfHState [Item]
 searchOnline = do
-  lAdd <- envVariableThrow "alternate_server_addr"
+  query                    <- getQuery
   (AlfHState _ _ ls _ _ _) <- get
-  query <- getQuery
+  nSearches                <- envVariableThrow "n_web_search"
+  lAdd                     <- envVariableThrow "alternate_server_addr"
   let req =
         setRequestQueryString
             [ ("mode"  , Just "json")
             , ("start" , Just "1")
-            , ("count" , Just $ C8.pack "10")
+            , ("count" , Just $ C8.pack nSearches)
             , ("hoogle", Just $ C8.pack query)
             ]
-          $ parseRequest_ $ if ls then lAdd
-                                  else "https://hoogle.haskell.org"
+          $ parseRequest_
+          $ if ls then lAdd else "https://hoogle.haskell.org"
   mResp <- liftIO $ try $ httpJSONEither req
   case mResp of
     Left  (_ :: HttpException) -> return $ errorItems "Connection error"
