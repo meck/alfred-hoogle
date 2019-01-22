@@ -15,6 +15,9 @@ This was made for my own use and to test my library for writing Alfred workflows
 * <kbd>Cmd</kbd>+<kbd>Y</kbd> or a tap on <kbd>Shift</kbd> opens a quicklook window.
 * <kbd>Cmd</kbd>+<kbd>C</kbd> copies the function name.
 
+## Installation
+Download binary from releases or check build section
+
 ## Settings
 Settings are available via the `hoset` keyword
 
