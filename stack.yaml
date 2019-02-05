@@ -1,10 +1,8 @@
-resolver: lts-12.16
+resolver: nightly-2019-02-04
 
 extra-deps:
   - git: https://github.com/meck/alfred-footman.git
-    commit: b41de69471aaffe0de0d732f8018d4ec3c3cf76d
-  - git: https://github.com/ndmitchell/hoogle.git
-    commit: 825e66699b3e14c968d8c08bc1ec26006d6d8183
+    commit: b6631ccacfc1245ee03df75641ae7aa784486b55
   # - ../alfred-footman/
 
 ghc-options:
