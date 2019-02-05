@@ -8,7 +8,6 @@
 import           Alfred
 import           Hoogle
 import           Control.Applicative
-import           Data.Bifunctor                 ( first )
 import qualified Data.ByteString.Char8         as C8
 import qualified Data.Map.Strict               as M
 import           Data.Binary                    ( Binary )
@@ -261,9 +260,9 @@ targetToItem Target { targetURL, targetPackage, targetModule, targetType, target
         , subtitle     = case targetType of
                              "" -> ("Module: " <>) <$> liftA2
                                  (maybeSeparator ".")
-                                 (fst <$> targetPackage')
-                                 (fst <$> targetModule')
-                             "module" -> ("Package: " <>) . fst <$> targetPackage'
+                                 (fst <$> targetPackage)
+                                 (fst <$> targetModule)
+                             "module" -> ("Package: " <>) . fst <$> targetPackage
                              _ -> Nothing
         , arg          = Just targetURL
         , autocomplete = Just targetName'
@@ -278,9 +277,6 @@ targetToItem Target { targetURL, targetPackage, targetModule, targetType, target
                              }
         }
   where
-   -- | Target comes with its own stringtype
-    targetPackage' = first show <$> targetPackage
-    targetModule'  = first show <$> targetModule
     targetItem'    = T.unpack $ innerText $ parseTags $ T.pack targetItem
     targetDocs'    = T.unpack $ innerText $ parseTags $ T.pack targetDocs
     targetName' =
@@ -291,17 +287,17 @@ targetToItem Target { targetURL, targetPackage, targetModule, targetType, target
             $ parseTags
             $ T.pack targetItem
     packageMod = case targetType of
-        ""        -> bNo $ makeMod pacS False =<< targetPackage'
-        "module"  -> bNo $ makeMod pacS False =<< targetPackage'
+        ""        -> bNo $ makeMod pacS False =<< targetPackage
+        "module"  -> bNo $ makeMod pacS False =<< targetPackage
         "package" -> makeMod pacS False (targetName', targetURL)
         _         -> Nothing
     stackPkgMod = case targetType of
-        ""        -> bNo $ makeMod pacS True . dupUrl =<< targetPackage'
-        "module"  -> bNo $ makeMod pacS True . dupUrl =<< targetPackage'
+        ""        -> bNo $ makeMod pacS True . dupUrl =<< targetPackage
+        "module"  -> bNo $ makeMod pacS True . dupUrl =<< targetPackage
         "package" -> makeMod pacS True (targetName', stackAddr targetName')
         _         -> Nothing
     moduleMod = case targetType of
-        ""        -> bNo $ makeMod modS False =<< targetModule'
+        ""        -> bNo $ makeMod modS False =<< targetModule
         "module"  -> makeMod modS False (targetName', targetURL)
         "package" -> bNo Nothing
         _         -> Nothing
