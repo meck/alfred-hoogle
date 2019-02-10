@@ -47,5 +47,5 @@ Some settings are available as workflow variables in Alfred:
 
 ### Building
 1. Ensure `stack` is installed
-2. Run `./buildworkflow.sh` this makes `Hoggle.alfredworkflow`
+2. Run `./build.hs` script, this makes `Hoggle.alfredworkflow`
 3. Open it with Alfred
