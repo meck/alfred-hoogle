@@ -45,6 +45,14 @@ Some settings are available as workflow variables in Alfred:
 - The number of local search results, default `15`
 - The number of web search results, default `15`
 
+### External trigger
+For triggering via applescript, as an example use it with Vim to lookup the word under the cursor:
+``` vimscript
+nnoremap <silent><Leader>ho :silent execute ':!/usr/bin/osascript -e ' 
+  \ . shellescape('tell application "Alfred 3" to run trigger "ext_trig"
+  \ in workflow "se.meck.alfred-hoogle"
+  \ with argument "' . expand('<cword>') . '"') <CR>
+``` 
 ### Building
 1. Ensure `stack` is installed
 2. Run `./build.hs` script, this makes `Hoggle.alfredworkflow`

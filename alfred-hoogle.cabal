@@ -1,6 +1,6 @@
 cabal-version:       1.24
 name:                alfred-hoogle
-version:             0.1.1
+version:             0.1.2
 description:         Hoogle from Alfred
 synopsis:            Hoogle from Alfred
 
