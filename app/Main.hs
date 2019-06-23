@@ -6,6 +6,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 import           Alfred
+import           Alfred.Updater
 import           Hoogle
 import           Control.Applicative
 import qualified Data.ByteString.Char8         as C8
@@ -25,8 +26,11 @@ import           Text.HTML.TagSoup              ( parseTags
                                                 )
 import           GHC.Generics                   ( Generic )
 
-prevSearchKey :: String
-prevSearchKey = "prevSearchTerm"
+updateRerunVal :: String
+updateRerunVal = "rerun_for_update"
+
+updateItem' :: AlfM s (Maybe Item)
+updateItem' = updateItem "meck" "alfred-hoogle"
 
 data AlfHState = AlfHState { localSearchActive :: Bool
                            , onlineSearchActive :: Bool
@@ -58,7 +62,10 @@ cmdShowSettings :: AlfM AlfHState (Maybe Return)
 cmdShowSettings = do
     (AlfHState lsa osa ls lfp _ plo) <- get
     lSaddr                           <- envVariableThrow "alternate_server_addr"
-    return $ Just $ defaultReturn
+    setRR                            <- setRerunWithTag updateRerunVal
+    isRR                             <- isRerunWithTag updateRerunVal
+    updateI                          <- fmap setNoCmd . maybeToList <$> updateItem'
+    return $ Just $ setRR $ defaultReturn
         { retVars = M.fromList [("do_cmd", "true")]
         , items   =
             [ itemWithTSV
@@ -90,6 +97,7 @@ cmdShowSettings = do
                            ]
                        )
                        lfp
+                ++ (if isRR then updateI else [])
         }
   where
     itemWithTSV t s v =
@@ -160,12 +168,9 @@ hoogleSearch :: AlfM AlfHState (Maybe Return)
 hoogleSearch = Just <$> do
     (AlfHState doLocalSearch doOnlineSearch _ _ _ prefLoc) <- get
     let doBoth = doLocalSearch && doOnlineSearch
-    query      <- getQuery
-    prevSearch <- envVariable prevSearchKey
-
-    let isSecondRun = case prevSearch of
-            Nothing   -> False
-            (Just ps) -> (ps == query) && doBoth
+    query       <- getQuery
+    isSecondRun <- isRerunWithTag query
+    setRR       <- setRerunWithTag query
 
     let localResults  = addIcon "hask_local.png" . itemsToResult <$> searchLocal
     let onlineResults = addIcon "hask_web.png" . itemsToResult <$> searchOnline
@@ -174,7 +179,7 @@ hoogleSearch = Just <$> do
     -- script, on the second run both are searched and the result is updated in Alfed when they are done
     if
         | isSecondRun -> liftA2 (merge prefLoc) localResults onlineResults
-        | doBoth -> setPrevSearch query . setRerun <$> localResults
+        | doBoth -> setRR <$> localResults
         | doOnlineSearch -> onlineResults
         | doLocalSearch -> localResults
         | otherwise -> return $ itemsToResult $ errorItems
@@ -327,19 +332,15 @@ addIcon :: FilePath -> Return -> Return
 addIcon fp r =
     r { items = (\i -> i { icon = Just (Icon False fp) }) <$> items r }
 
-setPrevSearch :: String -> Return -> Return
-setPrevSearch str ret =
-    ret { retVars = M.insert prevSearchKey str (retVars ret) }
-
 getQuery :: AlfM AlfHState String
 getQuery = unwords <$> alfArgs
 
--- | The smallest value possible
-setRerun :: Return -> Return
-setRerun ret = ret { rerun = Just 0.1 }
-
 errorItems :: String -> [Item]
 errorItems e = [defaultItem { title = e, valid = False }]
+
+setNoCmd :: Item -> Item
+setNoCmd i = i { itemVars = M.insert "do_cmd" "false" (itemVars i)}
+
 -----------------
 --  Misc Util  --
 -----------------

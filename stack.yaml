@@ -1,8 +1,8 @@
-resolver: nightly-2019-02-04
+resolver: nightly-2019-02-14
 
 extra-deps:
   - git: https://github.com/meck/alfred-footman.git
-    commit: b6631ccacfc1245ee03df75641ae7aa784486b55
+    commit: f78be01443549fd0f43e74feed8f1b3168d29ef0
   # - ../alfred-footman/
 
 ghc-options:

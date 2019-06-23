@@ -1,6 +1,6 @@
 cabal-version:       1.24
 name:                alfred-hoogle
-version:             0.1.2
+version:             0.1.3
 description:         Hoogle from Alfred
 synopsis:            Hoogle from Alfred
 
@@ -35,7 +35,6 @@ executable alfred-hoogle
   build-depends:       base
                      , alfred-footman
                      , hoogle
-                     , aeson
                      , bytestring
                      , containers
                      , http-conduit

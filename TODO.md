@@ -1,1 +1,0 @@
-* Check alfred versioning
