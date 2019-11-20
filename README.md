@@ -48,10 +48,14 @@ Some settings are available as workflow variables in Alfred:
 ### External trigger
 For triggering via applescript, as an example use it with Vim to lookup the word under the cursor:
 ``` vimscript
-nnoremap <silent><Leader>ho :silent execute ':!/usr/bin/osascript -e ' 
-  \ . shellescape('tell application "Alfred 3" to run trigger "ext_trig"
-  \ in workflow "se.meck.alfred-hoogle"
-  \ with argument "' . expand('<cword>') . '"') <CR>
+nnoremap <silent><Leader>ho :silent execute 
+    \ ':!/usr/bin/osascript -e '
+    \ . shellescape(
+    \ 'tell application id "com.runningwithcrayons.Alfred"
+    \ to run trigger "ext_trig"
+    \ in workflow "se.meck.alfred-hoogle"
+    \ with argument "' . expand('<cword>') . '"'
+    \ )<CR>
 ``` 
 ### Building
 1. Ensure `stack` is installed
